@@ -1,4 +1,4 @@
-from src.lib.jwt import create_token, get_payload, get_user_id
+from src.lib.jwt import create_token
 from src.models.user import User
 from fastapi import HTTPException
 from src.lib.bycript import check_password
@@ -15,21 +15,15 @@ async def login_service(email: str, password: str):
   
   return token
 
-async def logout_service(token: str):
-  payload = get_payload(token)
-  user = await User.get_or_none(id=payload["user_id"])
-  if not user:
-    raise HTTPException(status_code=401, detail="Invalid token")
-  return True
-
-async def me_service(token: str):
-  user_id = get_user_id(token)
+async def me_service(user_id: int):
   user = await User.get_or_none(id=user_id)
   if not user:
-    raise HTTPException(status_code=401, detail="Invalid token")
+    raise HTTPException(status_code=404, detail="User not found")
   return {
     "id": user.id,
     "username": user.username,
     "email": user.email,
     "full_name": user.full_name,
+    "created_at": user.created_at.isoformat() if user.created_at else None,
+    "updated_at": user.updated_at.isoformat() if user.updated_at else None,
   }

@@ -5,6 +5,10 @@ from fastapi.middleware.gzip import GZipMiddleware
 from src.controllers import router
 from tortoise.contrib.fastapi import register_tortoise
 from src.config.tortoise import tortoise_config
+from src.middleware.auth import JWTAuthMiddleware
+import os
+
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 config = get_config()
 
@@ -32,7 +36,9 @@ def create_app() -> FastAPI:
     add_exception_handlers=True
   )
   
-  app.add_middleware(GZipMiddleware,minimum_size=1024)
+  app.add_middleware(GZipMiddleware, minimum_size=1024)
+  
+  app.add_middleware(JWTAuthMiddleware)
 
   app.include_router(router, prefix="/api/v1")
   

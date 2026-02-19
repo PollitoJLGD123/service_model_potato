@@ -1,0 +1,76 @@
+"""
+Middleware de autenticación JWT que protege todas las rutas excepto las públicas.
+Lee el token del header Authorization: Bearer <token> o del body como fallback.
+"""
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+from fastapi import HTTPException
+from src.lib.jwt import verify_token, get_user_id
+import json
+
+PUBLIC_ROUTES = [
+    "/api/v1/login",
+    "/api/v1/register",
+    "/docs",
+]
+
+
+class JWTAuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if any(request.url.path.startswith(route) for route in PUBLIC_ROUTES):
+            return await call_next(request)
+
+        token = self._extract_token(request)
+
+        if not token:
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "status": "error",
+                    "message": "No token provided",
+                    "data": None,
+                },
+            )
+
+        try:
+            payload = verify_token(token)
+            user_id = payload["user_id"]
+
+            request.state.user_id = user_id
+            request.state.user_email = payload.get("email")
+
+        except HTTPException as e:
+            return JSONResponse(
+                status_code=e.status_code,
+                content={
+                    "status": "error",
+                    "message": e.detail,
+                    "data": None,
+                },
+            )
+        except Exception as e:
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "status": "error",
+                    "message": f"Invalid token: {str(e)}",
+                    "data": None,
+                },
+            )
+
+        response = await call_next(request)
+        return response
+
+    def _extract_token(self, request: Request) -> str | None:
+        auth_header = request.headers.get("Authorization")
+        if auth_header:
+            parts = auth_header.split()
+            if len(parts) == 2 and parts[0].lower() == "bearer":
+                return parts[1]
+
+        token_param = request.query_params.get("token")
+        if token_param:
+            return token_param
+
+        return None
