@@ -5,6 +5,8 @@ from fastapi import HTTPException
 
 config = get_jwt_config()
 
+JWT_ALGORITHM = "HS256"
+
 def create_token(user_id: int, email: str) -> str:
   payload = {
     "user_id": user_id,
@@ -12,11 +14,11 @@ def create_token(user_id: int, email: str) -> str:
     "exp": datetime.now(timezone.utc) + timedelta(seconds=config.JWT_EXPIRATION)
   }
   
-  return jwt.encode(payload, config.JWT_SECRET)
+  return jwt.encode(payload, config.JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 def verify_token(token: str) -> dict:
   try:
-    payload = jwt.decode(token, config.JWT_SECRET)
+    payload = jwt.decode(token, config.JWT_SECRET, algorithms=[JWT_ALGORITHM])
     return payload
   except jwt.ExpiredSignatureError:
     raise HTTPException(status_code=401, detail="Token has expired")

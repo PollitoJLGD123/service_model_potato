@@ -18,6 +18,11 @@ PUBLIC_ROUTES = [
 
 class JWTAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        # Permitir peticiones OPTIONS (preflight de CORS) sin autenticación
+        if request.method == "OPTIONS":
+            return await call_next(request)
+        
+        # Permitir rutas públicas sin autenticación
         if any(request.url.path.startswith(route) for route in PUBLIC_ROUTES):
             return await call_next(request)
 
@@ -64,13 +69,10 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
 
     def _extract_token(self, request: Request) -> str | None:
         auth_header = request.headers.get("Authorization")
+                
         if auth_header:
             parts = auth_header.split()
             if len(parts) == 2 and parts[0].lower() == "bearer":
                 return parts[1]
-
-        token_param = request.query_params.get("token")
-        if token_param:
-            return token_param
 
         return None
