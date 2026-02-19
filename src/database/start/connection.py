@@ -2,15 +2,18 @@ from tortoise import Tortoise
 import logging
 from src.config.tortoise import tortoise_config
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("LOGGER_DATABASE")
 
 async def start_connection():
   await Tortoise.init(config=tortoise_config)
-  logging.info("✅ Conexión a la base de datos establecida correctamente")
-  
-  # await Tortoise.generate_schemas()
-  # logging.info("✅ Esquemas de la base de datos generados correctamente")
+  logger.info("Conexion a la base de datos establecida correctamente")
+  try:
+    await Tortoise.generate_schemas(safe=True)
+    logger.info("Esquemas de la base de datos generados correctamente")
+  except Exception as e:
+    logger.error(f"Error al generar los esquemas de la base de datos: {e}")
+    raise e
 
 async def stop_connection():
   await Tortoise.close_connections()
-  logging.info("❌ Conexión a la base de datos cerrada correctamente")
+  logger.info("Conexion a la base de datos cerrada correctamente")

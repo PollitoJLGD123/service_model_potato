@@ -2,7 +2,6 @@ from tortoise import fields
 from src.models.base import BaseModel
 
 class User(BaseModel):
-  id = fields.IntField(primary_key=True, generated=True)
   username = fields.CharField(max_length=20, unique=True)
   password = fields.TextField()
   email = fields.CharField(max_length=255, unique=True)
