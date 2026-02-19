@@ -7,7 +7,6 @@ import dotenv
 dotenv.load_dotenv()
 config = get_config()
 
-# Configurar logging para ver mensajes INFO en consola (p. ej. conexión a la DB)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",

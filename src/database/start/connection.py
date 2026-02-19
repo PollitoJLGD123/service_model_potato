@@ -1,18 +1,15 @@
 from tortoise import Tortoise
-from src.config import get_database_config
 import logging
+from src.config.tortoise import tortoise_config
 
-database_config = get_database_config()
+logger = logging.getLogger(__name__)
 
 async def start_connection():
-  await Tortoise.init(
-    db_url=f"postgresql://{database_config.DB_USER}:{database_config.DB_PASSWORD}@{database_config.DB_HOST}:{database_config.DB_PORT}/{database_config.DB_NAME}",
-    modules={"models": ["src.models"]}
-  )
+  await Tortoise.init(config=tortoise_config)
   logging.info("✅ Conexión a la base de datos establecida correctamente")
   
-  await Tortoise.generate_schemas()
-  logging.info("✅ Esquemas de la base de datos generados correctamente")
+  # await Tortoise.generate_schemas()
+  # logging.info("✅ Esquemas de la base de datos generados correctamente")
 
 async def stop_connection():
   await Tortoise.close_connections()
