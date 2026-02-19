@@ -1,26 +1,28 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request, Response, HTTPException
 from src.services.auth import login_service, logout_service, me_service
-from fastapi import Request, Response
 from src.helpers.response import success_response
+from src.schemas.auth import LoginRequest
 
 router = APIRouter()
 
-@router.post("/login")
-async def login(request: Request, response: Response):
-  data = await request.json()
-  token = await login_service(data["email"], data["password"])
+@router.post("/login", status_code=200)
+async def login(body: LoginRequest, response: Response):
+  token = await login_service(body.email, body.password)
   response.set_cookie(key="token_access", value=token, httponly=True, secure=True, samesite="strict")
-  return success_response(None, "Login successful")
+  return success_response(None, "Login successful", status_code=200)
 
-@router.post("/logout")
+@router.post("/logout", status_code=200)
 async def logout(request: Request, response: Response):
   token = request.cookies.get("token_access")
-  await logout_service(token)
+  if token:
+    await logout_service(token)
   response.delete_cookie(key="token_access")
-  return success_response(None, "Logout successful")
+  return success_response(None, "Logout successful", status_code=200)
 
-@router.get("/me")
+@router.get("/me", status_code=200)
 async def me(request: Request):
   token = request.cookies.get("token_access")
+  if not token:
+    raise HTTPException(status_code=401, detail="No token provided")
   user = await me_service(token)
-  return success_response(user, "User fetched successfully")
+  return success_response(user, "User fetched successfully", status_code=200)

@@ -1,0 +1,3 @@
+from src.schemas.auth import LoginRequest
+
+__all__ = ["LoginRequest"]

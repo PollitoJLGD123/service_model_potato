@@ -18,6 +18,5 @@ tortoise_config = TortoiseConfig(
     ),
   },
   use_tz=True,
-  timezone="UTC",
-  schemas=["src.models"],
+  timezone="UTC"
 )

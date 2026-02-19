@@ -6,3 +6,6 @@ class User(BaseModel):
   password = fields.TextField()
   email = fields.CharField(max_length=255, unique=True)
   full_name = fields.CharField(max_length=255, null=True, default=None)
+  
+  class Meta:
+    table = "users"
