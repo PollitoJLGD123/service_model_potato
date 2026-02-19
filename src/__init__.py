@@ -25,11 +25,10 @@ def create_app() -> FastAPI:
     max_age=600,
   )
   
-  # Usar config en lugar de db_url + modules (más limpio y consistente)
   register_tortoise(
-    app, 
+    app,
     config=tortoise_config,
-    generate_schemas=True, 
+    generate_schemas=True,
     add_exception_handlers=True
   )
   
