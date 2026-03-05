@@ -15,7 +15,7 @@ async def evaluate(file: UploadFile = File(...)):
     raise HTTPException(status_code=400, detail="Invalid image format")
 
   img_bytes = await file.read()
-  result = classifier.predict_bytes(img_bytes)
+  result = classifier.predict_all_models_bytes(img_bytes)
   return success_response(result, "Evaluation successful", status_code=200)
 
 
