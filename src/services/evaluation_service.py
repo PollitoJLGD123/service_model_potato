@@ -6,6 +6,7 @@ from pathlib import Path
 from fastapi import Request
 
 from src.models.prediccion import Prediccion
+from src.models.surco import Surco
 
 PREDICTIONS_DIR = Path(__file__).parent.parent.parent / "public" / "predictions"
 
@@ -50,6 +51,27 @@ def build_fase2_resumen(full_payload: dict) -> dict:
     }
 
 
+def build_fase2_placeholder() -> dict:
+    # Keep DB-compatible non-null JSON until phase 2 is completed.
+    return {
+        "modelo": None,
+        "clase_predicha": None,
+        "confianza": None,
+    }
+
+
+def build_fase2_payload_placeholder() -> dict:
+    # Placeholder structure that matches expected format for fase2_payload
+    return {
+        "resultados": {
+            "efficient": {
+                "clase_predicha": None,
+                "confianza": None,
+            }
+        }
+    }
+
+
 def prediccion_to_dict(p: Prediccion) -> dict:
     return {
         "id": p.id,
@@ -70,12 +92,16 @@ async def create_prediccion_fase1(
     user_id: int,
     imagen_url: str,
     fase1_payload: dict,
+    surco_id: int | None = None,
 ) -> Prediccion:
     return await Prediccion.create(
         usuario_id=user_id,
         imagen_url=imagen_url,
+        surco_id=surco_id,
         fase1_resumen=build_fase1_resumen(fase1_payload),
         fase1_payload=fase1_payload,
+        fase2_resumen=build_fase2_placeholder(),
+        fase2_payload=build_fase2_payload_placeholder(),
     )
 
 
@@ -92,15 +118,51 @@ async def update_prediccion_fase2(
     user_id: int,
     fase2_payload: dict,
 ) -> Prediccion | None:
+    # Find the most recent prediction for this user
+    # that has fase1_payload but hasn't had fase2 classification results yet
     prediccion = await (
-        Prediccion.filter(usuario_id=user_id, fase2_payload__isnull=True)
+        Prediccion.filter(usuario_id=user_id, fase1_payload__isnull=False)
         .order_by("-id")
         .first()
     )
     if not prediccion:
         return None
 
+    # Use placeholder if fase2_payload is None or empty
+    if not fase2_payload:
+        fase2_payload = build_fase2_payload_placeholder()
+
     prediccion.fase2_resumen = build_fase2_resumen(fase2_payload)
     prediccion.fase2_payload = fase2_payload
     await prediccion.save()
     return prediccion
+
+
+async def list_all_surcos_for_user(user_id: int) -> list[dict]:
+    """Get all surcos for a user across all their modules/lotes."""
+    # Join: User -> Modulo -> Lote -> Surco
+    surcos = await (
+        Surco.all()
+        .prefetch_related("lote", "lote__modulo", "lote__modulo__user")
+        .filter(lote__modulo__user_id=user_id)
+        .order_by("lote__modulo__id", "lote__id", "numero")
+    )
+    
+    result = []
+    for surco in surcos:
+        await surco.fetch_related("lote")
+        lote = surco.lote
+        await lote.fetch_related("modulo")
+        modulo = lote.modulo
+        
+        result.append({
+            "id": surco.id,
+            "numero": surco.numero,
+            "descripcion": surco.descripcion,
+            "lote_id": surco.lote_id,
+            "lote_identificador": lote.identificador,
+            "modulo_id": modulo.id,
+            "modulo_nombre": modulo.nombre,
+        })
+    
+    return result

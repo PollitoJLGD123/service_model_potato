@@ -10,6 +10,7 @@ from src.services.evaluation_service import (
   create_prediccion_fase1,
   update_prediccion_fase2,
   list_predicciones_by_user,
+  list_all_surcos_for_user,
   prediccion_to_dict,
 )
 
@@ -26,6 +27,7 @@ async def evaluate_roboflow(
   request: Request,
   file: UploadFile | None = File(None),
   image_url: str | None = Form(None),
+  surco_id: int | None = Form(None),
 ):
   user_id = _get_user_id(request)
   
@@ -48,9 +50,10 @@ async def evaluate_roboflow(
     user_id=user_id,
     imagen_url=saved_image_url or image_url or "",
     fase1_payload=result,
+    surco_id=surco_id,
   )
 
-  message = "Roboflow inference successful"
+  message = "inference successful"
   if not result.get("predictions"):
     message = "No hubo coincidencias"
 
@@ -83,6 +86,13 @@ async def evaluate(
     response_data["prediccion"] = prediccion_to_dict(prediccion)
 
   return success_response(response_data, "Evaluation successful", status_code=200)
+
+
+@router.get("/surcos", status_code=200)
+async def get_user_surcos(request: Request):
+  user_id = _get_user_id(request)
+  surcos = await list_all_surcos_for_user(user_id)
+  return success_response(surcos, "Surcos obtenidos", status_code=200)
 
 
 @router.get("/history", status_code=200)
