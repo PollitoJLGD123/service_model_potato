@@ -6,4 +6,4 @@ MODEL_PATH = MODEL_DIR / "model.keras"
 
 JSON_PATH = MODEL_DIR / "metrics.json"
 
-HISTORY_PATH = MODEL_DIR / "history.png"
+HISTORY_PATH = MODEL_DIR / "history_efficient.png"
