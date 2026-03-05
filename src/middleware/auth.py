@@ -8,6 +8,9 @@ from starlette.responses import JSONResponse
 from fastapi import HTTPException
 from src.lib.jwt import verify_token, get_user_id
 import json
+import logging
+
+logger = logging.getLogger("LOGGER_AUTH")
 
 PUBLIC_ROUTES = [
     "/api/v1/login",
@@ -29,6 +32,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         token = self._extract_token(request)
 
         if not token:
+            logger.warning("401 no token | method=%s path=%s", request.method, request.url.path)
             return JSONResponse(
                 status_code=401,
                 content={
@@ -46,6 +50,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             request.state.user_email = payload.get("email")
 
         except HTTPException as e:
+            logger.warning("401 invalid token | method=%s path=%s detail=%s", request.method, request.url.path, e.detail)
             return JSONResponse(
                 status_code=e.status_code,
                 content={
@@ -55,6 +60,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
                 },
             )
         except Exception as e:
+            logger.warning("401 token exception | method=%s path=%s detail=%s", request.method, request.url.path, str(e))
             return JSONResponse(
                 status_code=401,
                 content={
