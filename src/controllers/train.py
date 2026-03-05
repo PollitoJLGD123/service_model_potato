@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
 from src.constants.general import HISTORY_PATH
 from fastapi.responses import FileResponse
 
