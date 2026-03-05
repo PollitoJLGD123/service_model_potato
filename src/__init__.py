@@ -1,4 +1,7 @@
+from pathlib import Path
+
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from src.config import get_config
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -41,5 +44,9 @@ def create_app() -> FastAPI:
   app.add_middleware(JWTAuthMiddleware)
 
   app.include_router(router, prefix="/api/v1")
-  
+
+  public_dir = Path(__file__).parent.parent / "public"
+  public_dir.mkdir(parents=True, exist_ok=True)
+  app.mount("/public", StaticFiles(directory=str(public_dir)), name="public")
+
   return app
