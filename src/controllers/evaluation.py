@@ -29,8 +29,6 @@ async def evaluate_roboflow(
 ):
   user_id = _get_user_id(request)
   
-  print("user_id", user_id)
-
   if file and image_url:
     raise HTTPException(status_code=400, detail="Provide only one input: file or image_url")
   if not file and not image_url:
