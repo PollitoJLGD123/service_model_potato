@@ -200,7 +200,12 @@ El token se obtiene del endpoint `/login` en la respuesta:
 
 ## Scripts Útiles
 
-- `python seed.py` - Poblar base de datos con usuarios de prueba
+- `python seed.py` - Poblar base de datos con datos iniciales completos:
+  - Usuarios
+  - Módulos
+  - Lotes
+  - Surcos
+  - Períodos
 - `python create_tables.py` - Crear tablas manualmente (si generate_schemas falla)
 - `python check_postgres.py` - Verificar conexión a PostgreSQL
 
