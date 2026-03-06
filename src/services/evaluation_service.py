@@ -7,6 +7,7 @@ from fastapi import Request
 
 from src.models.prediccion import Prediccion
 from src.models.surco import Surco
+from src.models.diagnosis import DiagnosisReport, DiagnosisRecommendation
 
 PREDICTIONS_DIR = Path(__file__).parent.parent.parent / "public" / "predictions"
 
@@ -166,3 +167,146 @@ async def list_all_surcos_for_user(user_id: int) -> list[dict]:
         })
     
     return result
+
+
+def diagnosis_report_to_dict(report: DiagnosisReport, include_recommendations: bool = True) -> dict:
+    data: dict = {
+        "id": report.id,
+        "total_evaluaciones": report.total_evaluaciones,
+        "con_clasificacion": report.con_clasificacion,
+        "sin_clasificacion": report.sin_clasificacion,
+        "confianza_promedio": report.confianza_promedio,
+        "total_detecciones": report.total_detecciones,
+        "promedio_detecciones_por_imagen": report.promedio_detecciones_por_imagen,
+        "imagenes_con_blight": report.imagenes_con_blight,
+        "tasa_consenso": report.tasa_consenso,
+        "indice_severidad": report.indice_severidad,
+        "tendencia": report.tendencia,
+        "clase_reciente": report.clase_reciente,
+        "distribucion_enfermedades": report.distribucion_enfermedades,
+        "fecha": _iso(report.fecha),
+        "created_at": _iso(report.created_at),
+        "updated_at": _iso(report.updated_at),
+    }
+
+    if include_recommendations:
+        # Prefetched recommendations can be used directly
+        recs = getattr(report, "recommendations", None)
+        if recs is not None:
+            data["recomendaciones"] = [
+                recommendation_to_dict(r, include_report=False) for r in recs
+            ]
+
+    return data
+
+
+def recommendation_to_dict(
+    rec: DiagnosisRecommendation,
+    include_report: bool = True,
+) -> dict:
+    data: dict = {
+        "id": rec.id,
+        "titulo": rec.titulo,
+        "contenido": rec.contenido,
+        "severidad": rec.severidad,
+        "etiquetas": rec.etiquetas,
+        "fecha": _iso(rec.fecha),
+        "created_at": _iso(rec.created_at),
+        "updated_at": _iso(rec.updated_at),
+    }
+
+    if include_report:
+        report = getattr(rec, "report", None)
+        if report is not None:
+            data["report"] = {
+                "id": report.id,
+                "fecha": _iso(report.fecha),
+                "indice_severidad": report.indice_severidad,
+                "tendencia": report.tendencia,
+                "clase_reciente": report.clase_reciente,
+            }
+
+    return data
+
+
+async def create_diagnosis_report_with_recommendations(
+    user_id: int,
+    payload: dict,
+) -> dict:
+    """
+    Crea un DiagnosisReport y las recomendaciones asociadas a partir
+    del payload enviado por el frontend.
+
+    Estructura esperada:
+    {
+      \"total_evaluaciones\": int,
+      \"con_clasificacion\": int,
+      \"sin_clasificacion\": int,
+      \"confianza_promedio\": float,
+      \"total_detecciones\": int,
+      \"promedio_detecciones_por_imagen\": float,
+      \"imagenes_con_blight\": int,
+      \"tasa_consenso\": float,
+      \"indice_severidad\": float,
+      \"tendencia\": \"improving|worsening|stable|unknown\",
+      \"clase_reciente\": \"Potato___Late_blight\" | null,
+      \"distribucion_enfermedades\": {...},
+      \"recomendaciones\": [
+        {
+          \"titulo\": str | null,
+          \"contenido\": str,
+          \"severidad\": str | null,
+          \"etiquetas\": list[str] | null
+        },
+        ...
+      ]
+    }
+    """
+    recomendaciones_data = payload.get("recomendaciones") or []
+
+    report = await DiagnosisReport.create(
+        usuario_id=user_id,
+        total_evaluaciones=payload.get("total_evaluaciones", 0),
+        con_clasificacion=payload.get("con_clasificacion", 0),
+        sin_clasificacion=payload.get("sin_clasificacion", 0),
+        confianza_promedio=payload.get("confianza_promedio", 0.0),
+        total_detecciones=payload.get("total_detecciones", 0),
+        promedio_detecciones_por_imagen=payload.get(
+            "promedio_detecciones_por_imagen", 0.0
+        ),
+        imagenes_con_blight=payload.get("imagenes_con_blight", 0),
+        tasa_consenso=payload.get("tasa_consenso", 0.0),
+        indice_severidad=payload.get("indice_severidad", 0.0),
+        tendencia=payload.get("tendencia", "unknown"),
+        clase_reciente=payload.get("clase_reciente"),
+        distribucion_enfermedades=payload.get("distribucion_enfermedades") or {},
+    )
+
+    recomendaciones_objs: list[DiagnosisRecommendation] = []
+    for rec_data in recomendaciones_data:
+        rec_obj = await DiagnosisRecommendation.create(
+            usuario_id=user_id,
+            report=report,
+            titulo=rec_data.get("titulo"),
+            contenido=rec_data.get("contenido", ""),
+            severidad=rec_data.get("severidad"),
+            etiquetas=rec_data.get("etiquetas"),
+        )
+        recomendaciones_objs.append(rec_obj)
+
+    # Serializar reporte + recomendaciones sin asignar al atributo de relación (read-only)
+    report_dict = diagnosis_report_to_dict(report, include_recommendations=False)
+    report_dict["recomendaciones"] = [
+        recommendation_to_dict(r, include_report=False) for r in recomendaciones_objs
+    ]
+    return report_dict
+
+
+async def list_recommendations_by_user(user_id: int) -> list[dict]:
+    recs = await (
+        DiagnosisRecommendation.filter(usuario_id=user_id)
+        .prefetch_related("report")
+        .order_by("-fecha", "-id")
+        .all()
+    )
+    return [recommendation_to_dict(r, include_report=True) for r in recs]

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request, Body
 from src.models.classifier import classifier
 from src.helpers.response import success_response
 from src.services.roboflow_service import (
@@ -11,6 +11,8 @@ from src.services.evaluation_service import (
   update_prediccion_fase2,
   list_predicciones_by_user,
   list_all_surcos_for_user,
+  create_diagnosis_report_with_recommendations,
+  list_recommendations_by_user,
   prediccion_to_dict,
 )
 
@@ -100,3 +102,27 @@ async def get_evaluation_history(request: Request):
   user_id = _get_user_id(request)
   predicciones = await list_predicciones_by_user(user_id)
   return success_response(predicciones, "Historial de predicciones", status_code=200)
+
+
+@router.post("/diagnosis", status_code=201)
+async def create_diagnosis(
+  request: Request,
+  payload: dict = Body(...),
+):
+  """
+  Guarda un snapshot de diagnóstico agregado + recomendaciones.
+  El payload debe seguir la estructura documentada en create_diagnosis_report_with_recommendations.
+  """
+  user_id = _get_user_id(request)
+  report = await create_diagnosis_report_with_recommendations(user_id=user_id, payload=payload)
+  return success_response(report, "Diagnosis report creado", status_code=201)
+
+
+@router.get("/diagnosis/recommendations", status_code=200)
+async def get_diagnosis_recommendations(request: Request):
+  """
+  Retorna todas las recomendaciones de diagnóstico del usuario actual.
+  """
+  user_id = _get_user_id(request)
+  recomendaciones = await list_recommendations_by_user(user_id)
+  return success_response(recomendaciones, "Recomendaciones de diagnóstico", status_code=200)
