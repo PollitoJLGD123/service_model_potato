@@ -28,6 +28,7 @@ async def evaluate_roboflow(
   file: UploadFile | None = File(None),
   image_url: str | None = Form(None),
   surco_id: int | None = Form(None),
+  periodo_id: int | None = Form(None),
 ):
   user_id = _get_user_id(request)
   
@@ -51,6 +52,7 @@ async def evaluate_roboflow(
     imagen_url=saved_image_url or image_url or "",
     fase1_payload=result,
     surco_id=surco_id,
+    periodo_id=periodo_id,
   )
 
   message = "inference successful"
@@ -68,6 +70,7 @@ async def evaluate_roboflow(
 async def evaluate(
   request: Request,
   file: UploadFile = File(...),
+  periodo_id: int | None = Form(None),
 ):
   if not file.content_type or not file.content_type.startswith("image/"):
     raise HTTPException(status_code=400, detail="Invalid image format")
@@ -78,12 +81,16 @@ async def evaluate(
   result = classifier.predict_all_models_bytes(img_bytes)
 
   prediccion = await update_prediccion_fase2(user_id=user_id, fase2_payload=result)
+  if prediccion and periodo_id is not None:
+      # in case we want to update periodo on phase2, set and save
+      prediccion.periodo_id = periodo_id
+      await prediccion.save()
 
   response_data = {
     "clasificacion": result,
   }
   if prediccion:
-    response_data["prediccion"] = prediccion_to_dict(prediccion)
+    response_data["prediccion"] = await prediccion_to_dict(prediccion)
 
   return success_response(response_data, "Evaluation successful", status_code=200)
 
