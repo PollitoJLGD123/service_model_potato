@@ -1,4 +1,3 @@
-
 # Potato Disease Classification API
 
 API REST para clasificación de enfermedades de la papa usando TensorFlow/Keras. Desarrollada con FastAPI, Tortoise ORM y autenticación JWT.
@@ -164,6 +163,16 @@ Ejemplo de respuesta (cuando hay detecciones):
 
 Si `predictions` llega vacio, la inferencia se considera exitosa sin coincidencias.
 
+## Nuevas tablas y migraciones
+
+Al agregar el módulo de periodos se añade una tabla `periodos` y se crea una columna
+`periodo_id` (nullable) en `predicciones`.
+Para bases existentes ejecuta el script `periodo_migration.sql` o genera esquemas con
+`Tortoise.generate_schemas()` en un entorno de desarrollo.  
+
+Nota: `generate_schemas()` no actualiza tablas existentes, sólo crea nuevas; por ello se
+provee SQL manual para añadir `periodo_id` si ya hay datos.
+
 ### Entrenamiento (Protegido)
 
 - `POST /api/v1/train/*` - Endpoints de entrenamiento del modelo
@@ -191,7 +200,12 @@ El token se obtiene del endpoint `/login` en la respuesta:
 
 ## Scripts Útiles
 
-- `python seed.py` - Poblar base de datos con usuarios de prueba
+- `python seed.py` - Poblar base de datos con datos iniciales completos:
+  - Usuarios
+  - Módulos
+  - Lotes
+  - Surcos
+  - Períodos
 - `python create_tables.py` - Crear tablas manualmente (si generate_schemas falla)
 - `python check_postgres.py` - Verificar conexión a PostgreSQL
 

@@ -73,11 +73,13 @@ def build_fase2_payload_placeholder() -> dict:
     }
 
 
-def prediccion_to_dict(p: Prediccion) -> dict:
-    return {
+async def prediccion_to_dict(p: Prediccion) -> dict:
+    # Base fields
+    out = {
         "id": p.id,
         "surco_id": p.surco_id,
         "usuario_id": p.usuario_id,
+        "periodo_id": p.periodo_id,
         "imagen_url": p.imagen_url,
         "fase1_resumen": p.fase1_resumen,
         "fase1_payload": p.fase1_payload,
@@ -88,17 +90,36 @@ def prediccion_to_dict(p: Prediccion) -> dict:
         "updated_at": _iso(p.updated_at),
     }
 
+    # include related hierarchy info if available
+    surco = getattr(p, "surco", None)
+    if surco and hasattr(surco, "numero"):
+        out["surco_numero"] = surco.numero
+        if not hasattr(surco, "lote"):
+            await surco.fetch_related("lote")
+        lote = surco.lote
+        if lote and hasattr(lote, "identificador"):
+            out["lote_identificador"] = lote.identificador
+            if not hasattr(lote, "modulo"):
+                await lote.fetch_related("modulo")
+            modulo = lote.modulo
+            if modulo and hasattr(modulo, "nombre"):
+                out["modulo_nombre"] = modulo.nombre
+    return out
+
 
 async def create_prediccion_fase1(
     user_id: int,
     imagen_url: str,
     fase1_payload: dict,
     surco_id: int | None = None,
+    periodo_id: int | None = None,
 ) -> Prediccion:
+    # periodo_id may be None if prediction isn't assigned to any periodo
     return await Prediccion.create(
         usuario_id=user_id,
         imagen_url=imagen_url,
         surco_id=surco_id,
+        periodo_id=periodo_id,
         fase1_resumen=build_fase1_resumen(fase1_payload),
         fase1_payload=fase1_payload,
         fase2_resumen=build_fase2_placeholder(),
@@ -107,12 +128,18 @@ async def create_prediccion_fase1(
 
 
 async def list_predicciones_by_user(user_id: int) -> list[dict]:
+    # include related surco/lote/modulo to avoid QuerySet placeholders
     predicciones = await (
         Prediccion.filter(usuario_id=user_id)
+        .prefetch_related("surco", "surco__lote", "surco__lote__modulo")
         .order_by("-id")
         .all()
     )
-    return [prediccion_to_dict(p) for p in predicciones]
+    # convert asynchronously
+    result = []
+    for p in predicciones:
+        result.append(await prediccion_to_dict(p))
+    return result
 
 
 async def update_prediccion_fase2(
