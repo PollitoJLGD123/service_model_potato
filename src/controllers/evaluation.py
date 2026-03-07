@@ -15,6 +15,7 @@ from src.services.evaluation_service import (
   list_recommendations_by_user,
   prediccion_to_dict,
 )
+from src.services import prediction_recommendation_service
 
 router = APIRouter()
 
@@ -133,3 +134,62 @@ async def get_diagnosis_recommendations(request: Request):
   user_id = _get_user_id(request)
   recomendaciones = await list_recommendations_by_user(user_id)
   return success_response(recomendaciones, "Recomendaciones de diagnóstico", status_code=200)
+
+
+# ── Recomendaciones por predicción individual ──────────────────────
+
+@router.post("/predicciones/{prediccion_id}/recommendation", status_code=201)
+async def create_prediccion_recommendation(
+  request: Request,
+  prediccion_id: int,
+  payload: dict = Body(...),
+):
+  """
+  Guarda una recomendación para una predicción específica.
+  El frontend envía el snapshot de métricas junto con el texto de la recomendación.
+
+  Payload esperado:
+  {
+    "categoria": "fungicida|monitoreo|riego|general|alerta",
+    "prioridad": "urgente|alta|media|baja",
+    "titulo": str,
+    "contenido": str,
+    "etiquetas": list[str] | null,
+    "metricas_snapshot": {
+      "fase1_resumen": {...} | null,
+      "fase2_resumen": {...} | null,
+      "surco_id": int | null,
+      "surco_numero": int | null,
+      "lote_identificador": str | null,
+      "modulo_nombre": str | null
+    } | null
+  }
+  """
+  user_id = _get_user_id(request)
+  from src.models.prediccion import Prediccion
+  prediccion = await Prediccion.filter(id=prediccion_id, usuario_id=user_id).first()
+  if not prediccion:
+    raise HTTPException(status_code=404, detail="Predicción no encontrada")
+  rec = await prediction_recommendation_service.create_prediccion_recommendation(
+    user_id=user_id,
+    prediccion_id=prediccion_id,
+    payload=payload,
+  )
+  return success_response(rec, "Recomendación de predicción guardada", status_code=201)
+
+
+@router.get("/predicciones/{prediccion_id}/recommendation", status_code=200)
+async def list_prediccion_recommendations(
+  request: Request,
+  prediccion_id: int,
+):
+  """
+  Retorna el historial de recomendaciones de una predicción específica.
+  """
+  user_id = _get_user_id(request)
+  from src.models.prediccion import Prediccion
+  prediccion = await Prediccion.filter(id=prediccion_id, usuario_id=user_id).first()
+  if not prediccion:
+    raise HTTPException(status_code=404, detail="Predicción no encontrada")
+  recs = await prediction_recommendation_service.list_prediccion_recommendations(prediccion_id)
+  return success_response(recs, "Historial de recomendaciones de la predicción", status_code=200)

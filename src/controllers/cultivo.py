@@ -1,4 +1,4 @@
-from fastapi import APIRouter, File, Form, Request, UploadFile
+from fastapi import APIRouter, Body, File, Form, HTTPException, Request, UploadFile
 
 from src.helpers.auth import get_current_user_id
 from src.helpers.response import success_response
@@ -15,6 +15,7 @@ from src.services.cultivo import (
     list_predicciones,
     list_surcos,
 )
+from src.services import spatial_recommendation_service
 from src.services.roboflow_service import validate_image_content_type
 
 router = APIRouter()
@@ -116,3 +117,149 @@ async def evaluar_surco(
     )
 
     return success_response(prediccion, "Prediccion created successfully", status_code=201)
+
+
+# ── Diagnóstico espacial ──────────────────────────────────────────
+
+@router.post("/{modulo_id}/lotes/{lote_id}/surcos/{surco_id}/diagnosis", status_code=201)
+async def crear_surco_diagnosis(
+    modulo_id: int,
+    lote_id: int,
+    surco_id: int,
+    request: Request,
+    payload: dict = Body(...),
+):
+    """
+    Guarda un snapshot de diagnóstico + recomendaciones para un surco específico.
+
+    Payload:
+    {
+      "total_predicciones": int,
+      "con_enfermedad": int,
+      "saludables": int,
+      "confianza_promedio": float,
+      "total_detecciones": int,
+      "promedio_detecciones_por_imagen": float,
+      "tasa_consenso": float,
+      "indice_severidad": float,
+      "tendencia": "mejorando|empeorando|estable|insuficiente_datos",
+      "enfermedad_predominante": str | null,
+      "distribucion_enfermedades": {...} | null,
+      "recomendaciones": [{"categoria", "prioridad", "titulo", "contenido", "etiquetas"}]
+    }
+    """
+    user_id = get_current_user_id(request)
+    from src.models.surco import Surco
+    surco = await Surco.filter(
+        id=surco_id, lote_id=lote_id, lote__modulo_id=modulo_id
+    ).prefetch_related("lote__modulo").first()
+    if not surco or surco.lote.modulo.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Surco no encontrado")
+    report = await spatial_recommendation_service.create_surco_report_with_recommendations(
+        user_id=user_id,
+        surco_id=surco_id,
+        payload=payload,
+    )
+    return success_response(report, "Diagnóstico de surco guardado", status_code=201)
+
+
+@router.get("/{modulo_id}/lotes/{lote_id}/surcos/{surco_id}/diagnosis", status_code=200)
+async def listar_surco_diagnosis(
+    modulo_id: int,
+    lote_id: int,
+    surco_id: int,
+    request: Request,
+):
+    """Retorna el historial de diagnósticos de un surco."""
+    user_id = get_current_user_id(request)
+    from src.models.surco import Surco
+    surco = await Surco.filter(
+        id=surco_id, lote_id=lote_id, lote__modulo_id=modulo_id
+    ).prefetch_related("lote__modulo").first()
+    if not surco or surco.lote.modulo.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Surco no encontrado")
+    reports = await spatial_recommendation_service.list_surco_reports(surco_id)
+    return success_response(reports, "Historial de diagnósticos del surco", status_code=200)
+
+
+@router.post("/{modulo_id}/lotes/{lote_id}/diagnosis", status_code=201)
+async def crear_lote_diagnosis(
+    modulo_id: int,
+    lote_id: int,
+    request: Request,
+    payload: dict = Body(...),
+):
+    """
+    Guarda un snapshot de diagnóstico + recomendaciones para un lote.
+    Agrega métricas de todos los surcos del lote.
+
+    Payload: mismos campos base + "surcos_monitoreados": list[int] | null
+    """
+    user_id = get_current_user_id(request)
+    from src.models.lote import Lote
+    lote = await Lote.filter(id=lote_id, modulo_id=modulo_id).prefetch_related("modulo").first()
+    if not lote or lote.modulo.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Lote no encontrado")
+    report = await spatial_recommendation_service.create_lote_report_with_recommendations(
+        user_id=user_id,
+        lote_id=lote_id,
+        payload=payload,
+    )
+    return success_response(report, "Diagnóstico de lote guardado", status_code=201)
+
+
+@router.get("/{modulo_id}/lotes/{lote_id}/diagnosis", status_code=200)
+async def listar_lote_diagnosis(
+    modulo_id: int,
+    lote_id: int,
+    request: Request,
+):
+    """Retorna el historial de diagnósticos de un lote."""
+    user_id = get_current_user_id(request)
+    from src.models.lote import Lote
+    lote = await Lote.filter(id=lote_id, modulo_id=modulo_id).prefetch_related("modulo").first()
+    if not lote or lote.modulo.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Lote no encontrado")
+    reports = await spatial_recommendation_service.list_lote_reports(lote_id)
+    return success_response(reports, "Historial de diagnósticos del lote", status_code=200)
+
+
+@router.post("/{modulo_id}/diagnosis", status_code=201)
+async def crear_modulo_diagnosis(
+    modulo_id: int,
+    request: Request,
+    payload: dict = Body(...),
+):
+    """
+    Guarda un snapshot de diagnóstico + recomendaciones para un módulo completo.
+    Agrega métricas de todos los lotes y surcos del módulo.
+
+    Payload: mismos campos base + "lotes_monitoreados": list[int] | null
+                                  + "surcos_monitoreados": list[int] | null
+    """
+    user_id = get_current_user_id(request)
+    from src.models.modulo import Modulo
+    modulo = await Modulo.filter(id=modulo_id, user_id=user_id).first()
+    if not modulo:
+        raise HTTPException(status_code=404, detail="Módulo no encontrado")
+    report = await spatial_recommendation_service.create_modulo_report_with_recommendations(
+        user_id=user_id,
+        modulo_id=modulo_id,
+        payload=payload,
+    )
+    return success_response(report, "Diagnóstico de módulo guardado", status_code=201)
+
+
+@router.get("/{modulo_id}/diagnosis", status_code=200)
+async def listar_modulo_diagnosis(
+    modulo_id: int,
+    request: Request,
+):
+    """Retorna el historial de diagnósticos de un módulo."""
+    user_id = get_current_user_id(request)
+    from src.models.modulo import Modulo
+    modulo = await Modulo.filter(id=modulo_id, user_id=user_id).first()
+    if not modulo:
+        raise HTTPException(status_code=404, detail="Módulo no encontrado")
+    reports = await spatial_recommendation_service.list_modulo_reports(modulo_id)
+    return success_response(reports, "Historial de diagnósticos del módulo", status_code=200)
