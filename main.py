@@ -1,10 +1,12 @@
+import dotenv
+
+dotenv.load_dotenv()
+
 from src import create_app
 from src.config import get_config
 import uvicorn
 import logging
-import dotenv
 
-dotenv.load_dotenv()
 config = get_config()
 
 logging.basicConfig(

@@ -6,6 +6,7 @@ python-multipart>=0.0.6
 # Base de datos
 tortoise-orm>=1.1
 asyncpg>=0.28
+tzdata>=2024.1  # Zonas horarias IANA (requerido en Windows para zoneinfo)
 
 # Autenticación
 bcrypt>=5.0
