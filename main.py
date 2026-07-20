@@ -1,14 +1,13 @@
-import logging
-
 import dotenv
-import uvicorn
-
 
 dotenv.load_dotenv()
 
 from src import create_app
 from src.config import get_config
+import uvicorn
+import logging
 
+config = get_config()
 
 logging.basicConfig(
     level=logging.INFO,
