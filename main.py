@@ -1,11 +1,14 @@
-from src import create_app
-from src.config import get_config
-import uvicorn
 import logging
+
 import dotenv
+import uvicorn
+
 
 dotenv.load_dotenv()
-config = get_config()
+
+from src import create_app
+from src.config import get_config
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -13,10 +16,18 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
+config = get_config()
+app = create_app()
+
+
 if __name__ == "__main__":
     try:
-        app =  create_app()
-        uvicorn.run(app, port=config.PORT, log_level="info")
-    except Exception as e:
-        logging.error(e)
-        exit(1)
+        uvicorn.run(
+            app,
+            host="0.0.0.0",
+            port=int(config.PORT),
+            log_level="info",
+        )
+    except Exception:
+        logging.exception("No se pudo iniciar la aplicación")
+        raise
